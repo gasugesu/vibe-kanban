@@ -159,6 +159,7 @@ pub async fn create_project_from_github(
     let project_data = CreateProject {
         name: payload.name.clone(),
         git_repo_path: target_path.to_string_lossy().to_string(),
+        child_path: payload.child_path,
         use_existing_repo: true, // Since we just cloned it
         setup_script: payload.setup_script,
         dev_script: payload.dev_script,
