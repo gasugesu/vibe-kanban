@@ -506,7 +506,7 @@ pub async fn open_task_attempt_in_editor(
     } else {
         std::path::PathBuf::from(&attempt.worktree_path)
     };
-    
+
     // Open editor in the calculated directory
     let mut cmd = std::process::Command::new(&editor_command[0]);
     for arg in &editor_command[1..] {

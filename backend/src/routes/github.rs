@@ -113,22 +113,6 @@ pub async fn create_project_from_github(
         )));
     }
 
-    // Check if git repo path is already used by another project
-    match Project::find_by_git_repo_path(&app_state.db_pool, &target_path.to_string_lossy()).await {
-        Ok(Some(_)) => {
-            return Ok(ResponseJson(ApiResponse::error(
-                "A project with this git repository path already exists",
-            )));
-        }
-        Ok(None) => {
-            // Path is available, continue
-        }
-        Err(e) => {
-            tracing::error!("Failed to check for existing git repo path: {}", e);
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
-        }
-    }
-
     // Get GitHub token
     let github_token = {
         let config = app_state.get_config().read().await;
