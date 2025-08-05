@@ -153,7 +153,8 @@ impl ProcessService {
         let process_id = Uuid::new_v4();
 
         // Compute the working directory
-        let working_dir = Self::compute_working_directory(pool, task_id, &task_attempt.worktree_path).await?;
+        let working_dir =
+            Self::compute_working_directory(pool, task_id, &task_attempt.worktree_path).await?;
 
         // Create execution process record with delegation context
         let _execution_process = Self::create_execution_process_record_with_delegation(
@@ -251,7 +252,8 @@ impl ProcessService {
         let executor_config = Self::resolve_executor_config(&task_attempt.executor);
 
         // Compute the working directory
-        let working_dir = Self::compute_working_directory(pool, task_id, &task_attempt.worktree_path).await?;
+        let working_dir =
+            Self::compute_working_directory(pool, task_id, &task_attempt.worktree_path).await?;
 
         Self::start_process_execution(
             pool,
@@ -827,12 +829,12 @@ impl ProcessService {
         let task = Task::find_by_id(pool, task_id)
             .await?
             .ok_or(TaskAttemptError::TaskNotFound)?;
-        
+
         // Get the project to check for child_path
         let project = Project::find_by_id(pool, task.project_id)
             .await?
             .ok_or(TaskAttemptError::ProjectNotFound)?;
-        
+
         // Compute the working directory
         let working_dir = if let Some(child_path) = &project.child_path {
             std::path::Path::new(worktree_path)
@@ -842,7 +844,7 @@ impl ProcessService {
         } else {
             worktree_path.to_string()
         };
-        
+
         Ok(working_dir)
     }
 

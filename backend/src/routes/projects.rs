@@ -101,22 +101,6 @@ pub async fn create_project(
 
     tracing::debug!("Creating project '{}'", payload.name);
 
-    // Check if git repo path is already used by another project
-    match Project::find_by_git_repo_path(&app_state.db_pool, &payload.git_repo_path).await {
-        Ok(Some(_)) => {
-            return Ok(ResponseJson(ApiResponse::error(
-                "A project with this git repository path already exists",
-            )));
-        }
-        Ok(None) => {
-            // Path is available, continue
-        }
-        Err(e) => {
-            tracing::error!("Failed to check for existing git repo path: {}", e);
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
-        }
-    }
-
     // Validate and setup git repository
     let path = std::path::Path::new(&payload.git_repo_path);
 
@@ -235,32 +219,6 @@ pub async fn update_project(
     State(app_state): State<AppState>,
     Json(payload): Json<UpdateProject>,
 ) -> Result<ResponseJson<ApiResponse<Project>>, StatusCode> {
-    // If git_repo_path is being changed, check if the new path is already used by another project
-    if let Some(new_git_repo_path) = &payload.git_repo_path {
-        if new_git_repo_path != &existing_project.git_repo_path {
-            match Project::find_by_git_repo_path_excluding_id(
-                &app_state.db_pool,
-                new_git_repo_path,
-                existing_project.id,
-            )
-            .await
-            {
-                Ok(Some(_)) => {
-                    return Ok(ResponseJson(ApiResponse::error(
-                        "A project with this git repository path already exists",
-                    )));
-                }
-                Ok(None) => {
-                    // Path is available, continue
-                }
-                Err(e) => {
-                    tracing::error!("Failed to check for existing git repo path: {}", e);
-                    return Err(StatusCode::INTERNAL_SERVER_ERROR);
-                }
-            }
-        }
-    }
-
     // Destructure payload to handle field updates.
     // This allows us to treat `None` from the payload as an explicit `null` to clear a field,
     // as the frontend currently sends all fields on update.
