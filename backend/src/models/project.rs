@@ -11,6 +11,7 @@ pub struct Project {
     pub id: Uuid,
     pub name: String,
     pub git_repo_path: String,
+    pub child_path: Option<String>,
     pub setup_script: Option<String>,
     pub dev_script: Option<String>,
     pub cleanup_script: Option<String>,
@@ -26,6 +27,7 @@ pub struct Project {
 pub struct CreateProject {
     pub name: String,
     pub git_repo_path: String,
+    pub child_path: Option<String>,
     pub use_existing_repo: bool,
     pub setup_script: Option<String>,
     pub dev_script: Option<String>,
@@ -37,6 +39,7 @@ pub struct CreateProject {
 pub struct UpdateProject {
     pub name: Option<String>,
     pub git_repo_path: Option<String>,
+    pub child_path: Option<String>,
     pub setup_script: Option<String>,
     pub dev_script: Option<String>,
     pub cleanup_script: Option<String>,
@@ -48,6 +51,7 @@ pub struct CreateProjectFromGitHub {
     pub repository_id: i64,
     pub name: String,
     pub clone_url: String,
+    pub child_path: Option<String>,
     pub setup_script: Option<String>,
     pub dev_script: Option<String>,
     pub cleanup_script: Option<String>,
@@ -59,6 +63,7 @@ pub struct ProjectWithBranch {
     pub id: Uuid,
     pub name: String,
     pub git_repo_path: String,
+    pub child_path: Option<String>,
     pub setup_script: Option<String>,
     pub dev_script: Option<String>,
     pub cleanup_script: Option<String>,
@@ -104,10 +109,20 @@ pub struct CreateBranch {
 }
 
 impl Project {
+    /// Get the working directory path for this project
+    /// This combines git_repo_path with child_path if specified
+    pub fn get_working_directory(&self) -> std::path::PathBuf {
+        let mut path = std::path::PathBuf::from(&self.git_repo_path);
+        if let Some(child_path) = &self.child_path {
+            path.push(child_path);
+        }
+        path
+    }
+
     pub async fn find_all(pool: &SqlitePool) -> Result<Vec<Self>, sqlx::Error> {
         sqlx::query_as!(
             Project,
-            r#"SELECT id as "id!: Uuid", name, git_repo_path, setup_script, dev_script, cleanup_script, created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>" FROM projects ORDER BY created_at DESC"#
+            r#"SELECT id as "id!: Uuid", name, git_repo_path, child_path, setup_script, dev_script, cleanup_script, created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>" FROM projects ORDER BY created_at DESC"#
         )
         .fetch_all(pool)
         .await
@@ -116,7 +131,7 @@ impl Project {
     pub async fn find_by_id(pool: &SqlitePool, id: Uuid) -> Result<Option<Self>, sqlx::Error> {
         sqlx::query_as!(
             Project,
-            r#"SELECT id as "id!: Uuid", name, git_repo_path, setup_script, dev_script, cleanup_script, created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>" FROM projects WHERE id = $1"#,
+            r#"SELECT id as "id!: Uuid", name, git_repo_path, child_path, setup_script, dev_script, cleanup_script, created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>" FROM projects WHERE id = $1"#,
             id
         )
         .fetch_optional(pool)
@@ -129,7 +144,7 @@ impl Project {
     ) -> Result<Option<Self>, sqlx::Error> {
         sqlx::query_as!(
             Project,
-            r#"SELECT id as "id!: Uuid", name, git_repo_path, setup_script, dev_script, cleanup_script, created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>" FROM projects WHERE git_repo_path = $1"#,
+            r#"SELECT id as "id!: Uuid", name, git_repo_path, child_path, setup_script, dev_script, cleanup_script, created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>" FROM projects WHERE git_repo_path = $1"#,
             git_repo_path
         )
         .fetch_optional(pool)
@@ -143,7 +158,7 @@ impl Project {
     ) -> Result<Option<Self>, sqlx::Error> {
         sqlx::query_as!(
             Project,
-            r#"SELECT id as "id!: Uuid", name, git_repo_path, setup_script, dev_script, cleanup_script, created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>" FROM projects WHERE git_repo_path = $1 AND id != $2"#,
+            r#"SELECT id as "id!: Uuid", name, git_repo_path, child_path, setup_script, dev_script, cleanup_script, created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>" FROM projects WHERE git_repo_path = $1 AND id != $2"#,
             git_repo_path,
             exclude_id
         )
@@ -158,10 +173,11 @@ impl Project {
     ) -> Result<Self, sqlx::Error> {
         sqlx::query_as!(
             Project,
-            r#"INSERT INTO projects (id, name, git_repo_path, setup_script, dev_script, cleanup_script) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id as "id!: Uuid", name, git_repo_path, setup_script, dev_script, cleanup_script, created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>""#,
+            r#"INSERT INTO projects (id, name, git_repo_path, child_path, setup_script, dev_script, cleanup_script) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id as "id!: Uuid", name, git_repo_path, child_path, setup_script, dev_script, cleanup_script, created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>""#,
             project_id,
             data.name,
             data.git_repo_path,
+            data.child_path,
             data.setup_script,
             data.dev_script,
             data.cleanup_script
@@ -175,16 +191,18 @@ impl Project {
         id: Uuid,
         name: String,
         git_repo_path: String,
+        child_path: Option<String>,
         setup_script: Option<String>,
         dev_script: Option<String>,
         cleanup_script: Option<String>,
     ) -> Result<Self, sqlx::Error> {
         sqlx::query_as!(
             Project,
-            r#"UPDATE projects SET name = $2, git_repo_path = $3, setup_script = $4, dev_script = $5, cleanup_script = $6 WHERE id = $1 RETURNING id as "id!: Uuid", name, git_repo_path, setup_script, dev_script, cleanup_script, created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>""#,
+            r#"UPDATE projects SET name = $2, git_repo_path = $3, child_path = $4, setup_script = $5, dev_script = $6, cleanup_script = $7 WHERE id = $1 RETURNING id as "id!: Uuid", name, git_repo_path, child_path, setup_script, dev_script, cleanup_script, created_at as "created_at!: DateTime<Utc>", updated_at as "updated_at!: DateTime<Utc>""#,
             id,
             name,
             git_repo_path,
+            child_path,
             setup_script,
             dev_script,
             cleanup_script
@@ -233,6 +251,7 @@ impl Project {
             id: self.id,
             name: self.name,
             git_repo_path: self.git_repo_path,
+            child_path: self.child_path,
             setup_script: self.setup_script,
             dev_script: self.dev_script,
             cleanup_script: self.cleanup_script,

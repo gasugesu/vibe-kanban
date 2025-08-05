@@ -461,7 +461,7 @@ pub struct OpenEditorRequest {
 }
 
 pub async fn open_task_attempt_in_editor(
-    Extension(_project): Extension<Project>,
+    Extension(project): Extension<Project>,
     Extension(_task): Extension<Task>,
     Extension(task_attempt): Extension<TaskAttempt>,
     State(app_state): State<AppState>,
@@ -499,12 +499,20 @@ pub async fn open_task_attempt_in_editor(
         }
     };
 
-    // Open editor in the worktree directory
+    // Calculate the working directory path
+    // If project has a child_path, append it to the worktree path
+    let editor_path = if let Some(child_path) = &project.child_path {
+        std::path::PathBuf::from(&attempt.worktree_path).join(child_path)
+    } else {
+        std::path::PathBuf::from(&attempt.worktree_path)
+    };
+    
+    // Open editor in the calculated directory
     let mut cmd = std::process::Command::new(&editor_command[0]);
     for arg in &editor_command[1..] {
         cmd.arg(arg);
     }
-    cmd.arg(&attempt.worktree_path);
+    cmd.arg(editor_path.to_string_lossy().as_ref());
 
     match cmd.spawn() {
         Ok(_) => {
@@ -512,7 +520,7 @@ pub async fn open_task_attempt_in_editor(
                 "Opened editor ({}) for task attempt {} at path: {}",
                 editor_command.join(" "),
                 task_attempt.id,
-                attempt.worktree_path
+                editor_path.display()
             );
             Ok(ResponseJson(ApiResponse::success(())))
         }

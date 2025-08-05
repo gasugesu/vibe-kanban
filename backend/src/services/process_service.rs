@@ -152,13 +152,16 @@ impl ProcessService {
         let setup_script = project.setup_script.as_ref().unwrap();
         let process_id = Uuid::new_v4();
 
+        // Compute the working directory
+        let working_dir = Self::compute_working_directory(pool, task_id, &task_attempt.worktree_path).await?;
+
         // Create execution process record with delegation context
         let _execution_process = Self::create_execution_process_record_with_delegation(
             pool,
             attempt_id,
             process_id,
             setup_script,
-            &task_attempt.worktree_path,
+            &working_dir,
             delegation_context,
         )
         .await?;
@@ -178,7 +181,7 @@ impl ProcessService {
             task_id,
             attempt_id,
             process_id,
-            &task_attempt.worktree_path,
+            &working_dir,
         )
         .await?;
 
@@ -247,6 +250,9 @@ impl ProcessService {
 
         let executor_config = Self::resolve_executor_config(&task_attempt.executor);
 
+        // Compute the working directory
+        let working_dir = Self::compute_working_directory(pool, task_id, &task_attempt.worktree_path).await?;
+
         Self::start_process_execution(
             pool,
             app_state,
@@ -258,7 +264,7 @@ impl ProcessService {
             },
             "Starting executor".to_string(),
             ExecutionProcessType::CodingAgent,
-            &task_attempt.worktree_path,
+            &working_dir,
         )
         .await
     }
@@ -317,6 +323,9 @@ impl ProcessService {
             ));
         }
 
+        // Compute the working directory
+        let working_dir = Self::compute_working_directory(pool, task_id, &worktree_path).await?;
+
         let result = Self::start_process_execution(
             pool,
             app_state,
@@ -325,7 +334,7 @@ impl ProcessService {
             crate::executor::ExecutorType::DevServer(dev_script),
             "Starting dev server".to_string(),
             ExecutionProcessType::DevServer,
-            &worktree_path,
+            &working_dir,
         )
         .await;
 
@@ -500,6 +509,9 @@ impl ProcessService {
             }
         };
 
+        // Compute the working directory
+        let working_dir = Self::compute_working_directory(pool, task_id, &worktree_path).await?;
+
         // Try to start the follow-up execution
         let execution_result = Self::start_process_execution(
             pool,
@@ -509,7 +521,7 @@ impl ProcessService {
             followup_executor,
             "Starting follow-up executor".to_string(),
             ExecutionProcessType::CodingAgent,
-            &worktree_path,
+            &working_dir,
         )
         .await;
 
@@ -537,7 +549,7 @@ impl ProcessService {
                 new_session_executor,
                 "Starting new executor session (follow-up session failed)".to_string(),
                 ExecutionProcessType::CodingAgent,
-                &worktree_path,
+                &working_dir,
             )
             .await?;
         } else {
@@ -558,7 +570,7 @@ impl ProcessService {
         executor_type: crate::executor::ExecutorType,
         activity_note: String,
         process_type: ExecutionProcessType,
-        worktree_path: &str,
+        working_dir: &str,
     ) -> Result<(), TaskAttemptError> {
         let process_id = Uuid::new_v4();
 
@@ -569,7 +581,7 @@ impl ProcessService {
             process_id,
             &executor_type,
             process_type.clone(),
-            worktree_path,
+            working_dir,
         )
         .await?;
 
@@ -604,7 +616,7 @@ impl ProcessService {
             task_id,
             attempt_id,
             process_id,
-            worktree_path,
+            working_dir,
         )
         .await?;
 
@@ -665,6 +677,9 @@ impl ProcessService {
     ) -> Result<(), TaskAttemptError> {
         let setup_script = project.setup_script.as_ref().unwrap();
 
+        // Compute the working directory
+        let working_dir = Self::compute_working_directory(pool, task_id, worktree_path).await?;
+
         Self::start_process_execution(
             pool,
             app_state,
@@ -673,7 +688,7 @@ impl ProcessService {
             crate::executor::ExecutorType::SetupScript(setup_script.clone()),
             "Starting setup script".to_string(),
             ExecutionProcessType::SetupScript,
-            worktree_path,
+            &working_dir,
         )
         .await
     }
@@ -689,6 +704,9 @@ impl ProcessService {
     ) -> Result<(), TaskAttemptError> {
         let cleanup_script = project.cleanup_script.as_ref().unwrap();
 
+        // Compute the working directory
+        let working_dir = Self::compute_working_directory(pool, task_id, worktree_path).await?;
+
         Self::start_process_execution(
             pool,
             app_state,
@@ -697,7 +715,7 @@ impl ProcessService {
             crate::executor::ExecutorType::CleanupScript(cleanup_script.clone()),
             "Starting cleanup script".to_string(),
             ExecutionProcessType::CleanupScript,
-            worktree_path,
+            &working_dir,
         )
         .await
     }
@@ -725,7 +743,7 @@ impl ProcessService {
         process_id: Uuid,
         executor_type: &crate::executor::ExecutorType,
         process_type: ExecutionProcessType,
-        worktree_path: &str,
+        working_dir: &str,
     ) -> Result<ExecutionProcess, TaskAttemptError> {
         let (shell_cmd, shell_arg) = get_shell_command();
         let (command, args, executor_type_string) = match executor_type {
@@ -760,7 +778,7 @@ impl ProcessService {
             executor_type: executor_type_string,
             command,
             args,
-            working_directory: worktree_path.to_string(),
+            working_directory: working_dir.to_string(),
         };
 
         ExecutionProcess::create(pool, &create_process, process_id)
@@ -799,6 +817,35 @@ impl ProcessService {
             .map_err(TaskAttemptError::from)
     }
 
+    /// Compute the working directory for the executor based on worktree path and project's child path
+    async fn compute_working_directory(
+        pool: &SqlitePool,
+        task_id: Uuid,
+        worktree_path: &str,
+    ) -> Result<String, TaskAttemptError> {
+        // Get the task to find the project
+        let task = Task::find_by_id(pool, task_id)
+            .await?
+            .ok_or(TaskAttemptError::TaskNotFound)?;
+        
+        // Get the project to check for child_path
+        let project = Project::find_by_id(pool, task.project_id)
+            .await?
+            .ok_or(TaskAttemptError::ProjectNotFound)?;
+        
+        // Compute the working directory
+        let working_dir = if let Some(child_path) = &project.child_path {
+            std::path::Path::new(worktree_path)
+                .join(child_path)
+                .to_string_lossy()
+                .to_string()
+        } else {
+            worktree_path.to_string()
+        };
+        
+        Ok(working_dir)
+    }
+
     /// Execute the process based on type
     async fn execute_process(
         executor_type: &crate::executor::ExecutorType,
@@ -806,7 +853,7 @@ impl ProcessService {
         task_id: Uuid,
         attempt_id: Uuid,
         process_id: Uuid,
-        worktree_path: &str,
+        working_dir: &str,
     ) -> Result<command_runner::CommandProcess, TaskAttemptError> {
         use crate::executors::{CleanupScriptExecutor, DevServerExecutor, SetupScriptExecutor};
 
@@ -816,7 +863,7 @@ impl ProcessService {
                     script: script.clone(),
                 };
                 executor
-                    .execute_streaming(pool, task_id, attempt_id, process_id, worktree_path)
+                    .execute_streaming(pool, task_id, attempt_id, process_id, working_dir)
                     .await
             }
             crate::executor::ExecutorType::CleanupScript(script) => {
@@ -824,7 +871,7 @@ impl ProcessService {
                     script: script.clone(),
                 };
                 executor
-                    .execute_streaming(pool, task_id, attempt_id, process_id, worktree_path)
+                    .execute_streaming(pool, task_id, attempt_id, process_id, working_dir)
                     .await
             }
             crate::executor::ExecutorType::DevServer(script) => {
@@ -832,7 +879,7 @@ impl ProcessService {
                     script: script.clone(),
                 };
                 executor
-                    .execute_streaming(pool, task_id, attempt_id, process_id, worktree_path)
+                    .execute_streaming(pool, task_id, attempt_id, process_id, working_dir)
                     .await
             }
             crate::executor::ExecutorType::CodingAgent { config, follow_up } => {
@@ -847,12 +894,12 @@ impl ProcessService {
                             process_id,
                             &follow_up_info.session_id,
                             &follow_up_info.prompt,
-                            worktree_path,
+                            working_dir,
                         )
                         .await
                 } else {
                     executor
-                        .execute_streaming(pool, task_id, attempt_id, process_id, worktree_path)
+                        .execute_streaming(pool, task_id, attempt_id, process_id, working_dir)
                         .await
                 }
             }
@@ -894,7 +941,7 @@ impl ProcessService {
         attempt_id: Uuid,
         process_id: Uuid,
         _setup_script: &str,
-        worktree_path: &str,
+        working_dir: &str,
         delegation_context: serde_json::Value,
     ) -> Result<ExecutionProcess, TaskAttemptError> {
         let (shell_cmd, shell_arg) = get_shell_command();
@@ -913,7 +960,7 @@ impl ProcessService {
             executor_type: Some("setup-script".to_string()),
             command: shell_cmd.to_string(),
             args: Some(args_with_delegation.to_string()),
-            working_directory: worktree_path.to_string(),
+            working_directory: working_dir.to_string(),
         };
 
         ExecutionProcess::create(pool, &create_process, process_id)
@@ -928,7 +975,7 @@ impl ProcessService {
         task_id: Uuid,
         attempt_id: Uuid,
         process_id: Uuid,
-        worktree_path: &str,
+        working_dir: &str,
     ) -> Result<command_runner::CommandProcess, TaskAttemptError> {
         use crate::executors::SetupScriptExecutor;
 
@@ -937,7 +984,7 @@ impl ProcessService {
         };
 
         executor
-            .execute_streaming(pool, task_id, attempt_id, process_id, worktree_path)
+            .execute_streaming(pool, task_id, attempt_id, process_id, working_dir)
             .await
             .map_err(|e| TaskAttemptError::Git(git2::Error::from_str(&e.to_string())))
     }

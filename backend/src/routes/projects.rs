@@ -181,6 +181,31 @@ pub async fn create_project(
         }
     }
 
+    // Validate child_path if provided
+    if let Some(child_path) = &payload.child_path {
+        // Ensure child_path is relative and doesn't contain parent directory references
+        if child_path.starts_with('/') || child_path.contains("..") {
+            return Ok(ResponseJson(ApiResponse::error(
+                "Child path must be a relative path without parent directory references",
+            )));
+        }
+
+        // Verify the child path exists within the repository (for existing repos)
+        if payload.use_existing_repo {
+            let full_path = path.join(child_path);
+            if !full_path.exists() {
+                return Ok(ResponseJson(ApiResponse::error(
+                    "The specified child path does not exist in the repository",
+                )));
+            }
+            if !full_path.is_dir() {
+                return Ok(ResponseJson(ApiResponse::error(
+                    "The specified child path is not a directory",
+                )));
+            }
+        }
+    }
+
     match Project::create(&app_state.db_pool, &payload, id).await {
         Ok(project) => {
             // Track project creation event
@@ -242,6 +267,7 @@ pub async fn update_project(
     let UpdateProject {
         name,
         git_repo_path,
+        child_path,
         setup_script,
         dev_script,
         cleanup_script,
@@ -255,6 +281,7 @@ pub async fn update_project(
         existing_project.id,
         name,
         git_repo_path,
+        child_path,
         setup_script,
         dev_script,
         cleanup_script,
@@ -327,12 +354,13 @@ pub async fn open_project_in_editor(
         }
     };
 
-    // Open editor in the project directory
+    // Open editor in the project directory (including child_path if specified)
+    let editor_path = project.get_working_directory();
     let mut cmd = std::process::Command::new(&editor_command[0]);
     for arg in &editor_command[1..] {
         cmd.arg(arg);
     }
-    cmd.arg(&project.git_repo_path);
+    cmd.arg(editor_path.to_string_lossy().as_ref());
 
     match cmd.spawn() {
         Ok(_) => {
@@ -340,7 +368,7 @@ pub async fn open_project_in_editor(
                 "Opened editor ({}) for project {} at path: {}",
                 editor_command.join(" "),
                 project.id,
-                project.git_repo_path
+                editor_path.display()
             );
             Ok(ResponseJson(ApiResponse::success(())))
         }
@@ -369,8 +397,9 @@ pub async fn search_project_files(
         }
     };
 
-    // Search files in the project repository
-    match search_files_in_repo(&project.git_repo_path, query).await {
+    // Search files in the project repository (including child_path if specified)
+    let search_path = project.get_working_directory();
+    match search_files_in_repo(search_path.to_string_lossy().as_ref(), query).await {
         Ok(results) => Ok(ResponseJson(ApiResponse::success(results))),
         Err(e) => {
             tracing::error!("Failed to search files: {}", e);

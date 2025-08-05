@@ -22,6 +22,8 @@ interface ProjectFormFieldsProps {
   setFolderName: (name: string) => void;
   setName: (name: string) => void;
   name: string;
+  childPath: string;
+  setChildPath: (path: string) => void;
   setupScript: string;
   setSetupScript: (script: string) => void;
   devScript: string;
@@ -44,6 +46,8 @@ export function ProjectFormFields({
   setFolderName,
   setName,
   name,
+  childPath,
+  setChildPath,
   setupScript,
   setSetupScript,
   devScript,
@@ -193,6 +197,20 @@ export function ProjectFormFields({
           placeholder="Enter project name"
           required
         />
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="child-path">Child Path (Optional)</Label>
+        <Input
+          id="child-path"
+          type="text"
+          value={childPath}
+          onChange={(e) => setChildPath(e.target.value)}
+          placeholder="e.g., packages/frontend"
+        />
+        <p className="text-sm text-muted-foreground">
+          For monorepos: specify the subdirectory within the repository where your project code resides
+        </p>
       </div>
 
       <div className="space-y-2">

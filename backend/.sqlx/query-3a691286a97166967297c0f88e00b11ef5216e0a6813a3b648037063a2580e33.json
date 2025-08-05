@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id as \"id!: Uuid\", name, git_repo_path, setup_script, dev_script, cleanup_script, created_at as \"created_at!: DateTime<Utc>\", updated_at as \"updated_at!: DateTime<Utc>\" FROM projects WHERE id = $1",
+  "query": "SELECT id as \"id!: Uuid\", name, git_repo_path, child_path, setup_script, dev_script, cleanup_script, created_at as \"created_at!: DateTime<Utc>\", updated_at as \"updated_at!: DateTime<Utc>\" FROM projects WHERE git_repo_path = $1 AND id != $2",
   "describe": {
     "columns": [
       {
@@ -19,33 +19,38 @@
         "type_info": "Text"
       },
       {
-        "name": "setup_script",
+        "name": "child_path",
         "ordinal": 3,
         "type_info": "Text"
       },
       {
-        "name": "dev_script",
+        "name": "setup_script",
         "ordinal": 4,
         "type_info": "Text"
       },
       {
-        "name": "cleanup_script",
+        "name": "dev_script",
         "ordinal": 5,
         "type_info": "Text"
       },
       {
-        "name": "created_at!: DateTime<Utc>",
+        "name": "cleanup_script",
         "ordinal": 6,
         "type_info": "Text"
       },
       {
-        "name": "updated_at!: DateTime<Utc>",
+        "name": "created_at!: DateTime<Utc>",
         "ordinal": 7,
+        "type_info": "Text"
+      },
+      {
+        "name": "updated_at!: DateTime<Utc>",
+        "ordinal": 8,
         "type_info": "Text"
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 2
     },
     "nullable": [
       true,
@@ -54,9 +59,10 @@
       true,
       true,
       true,
+      true,
       false,
       false
     ]
   },
-  "hash": "3d0a1cabf2a52e9d90cdfd29c509ca89aeb448d0c1d2446c65cd43db40735e86"
+  "hash": "3a691286a97166967297c0f88e00b11ef5216e0a6813a3b648037063a2580e33"
 }

@@ -39,6 +39,7 @@ export function ProjectForm({
 }: ProjectFormProps) {
   const [name, setName] = useState(project?.name || '');
   const [gitRepoPath, setGitRepoPath] = useState(project?.git_repo_path || '');
+  const [childPath, setChildPath] = useState(project?.child_path ?? '');
   const [setupScript, setSetupScript] = useState(project?.setup_script ?? '');
   const [devScript, setDevScript] = useState(project?.dev_script ?? '');
   const [cleanupScript, setCleanupScript] = useState(
@@ -84,12 +85,14 @@ export function ProjectForm({
     if (project) {
       setName(project.name || '');
       setGitRepoPath(project.git_repo_path || '');
+      setChildPath(project.child_path ?? '');
       setSetupScript(project.setup_script ?? '');
       setDevScript(project.dev_script ?? '');
       setCleanupScript(project.cleanup_script ?? '');
     } else {
       setName('');
       setGitRepoPath('');
+      setChildPath('');
       setSetupScript('');
       setDevScript('');
       setCleanupScript('');
@@ -131,6 +134,7 @@ export function ProjectForm({
         const updateData: UpdateProject = {
           name,
           git_repo_path: finalGitRepoPath,
+          child_path: childPath.trim() || null,
           setup_script: setupScript.trim() || null,
           dev_script: devScript.trim() || null,
           cleanup_script: cleanupScript.trim() || null,
@@ -150,6 +154,7 @@ export function ProjectForm({
             repository_id: BigInt(selectedRepository.id),
             name,
             clone_url: selectedRepository.clone_url,
+            child_path: childPath.trim() || null,
             setup_script: setupScript.trim() || null,
             dev_script: devScript.trim() || null,
             cleanup_script: cleanupScript.trim() || null,
@@ -169,6 +174,7 @@ export function ProjectForm({
           const createData: CreateProject = {
             name,
             git_repo_path: finalGitRepoPath,
+            child_path: childPath.trim() || null,
             use_existing_repo: repoMode === 'existing',
             setup_script: setupScript.trim() || null,
             dev_script: devScript.trim() || null,
@@ -183,6 +189,7 @@ export function ProjectForm({
       // Reset form
       setName('');
       setGitRepoPath('');
+      setChildPath('');
       setSetupScript('');
       setDevScript('');
       setCleanupScript('');
@@ -251,6 +258,8 @@ export function ProjectForm({
                   setFolderName={setFolderName}
                   setName={setName}
                   name={name}
+                  childPath={childPath}
+                  setChildPath={setChildPath}
                   setupScript={setupScript}
                   setSetupScript={setSetupScript}
                   devScript={devScript}
@@ -357,6 +366,8 @@ export function ProjectForm({
                 setFolderName={setFolderName}
                 setName={setName}
                 name={name}
+                childPath={childPath}
+                setChildPath={setChildPath}
                 setupScript={setupScript}
                 setSetupScript={setSetupScript}
                 devScript={devScript}
