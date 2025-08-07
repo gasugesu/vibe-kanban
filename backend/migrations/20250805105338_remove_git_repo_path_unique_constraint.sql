@@ -16,7 +16,18 @@ CREATE TABLE projects_new (
 );
 
 -- Copy all data from the old table to the new table
-INSERT INTO projects_new SELECT * FROM projects;
+INSERT INTO projects_new 
+SELECT 
+    id,
+    name,
+    git_repo_path,
+    child_path,
+    setup_script,
+    dev_script,
+    COALESCE(cleanup_script, '') as cleanup_script,
+    created_at,
+    updated_at
+FROM projects;
 
 -- Drop the old table
 DROP TABLE projects;
