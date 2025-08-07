@@ -54,12 +54,12 @@ impl ClaudeExecutor {
     pub fn new() -> Self {
         Self {
             executor_type: "Claude Code".to_string(),
-            command: "npx -y @anthropic-ai/claude-code@latest -p --dangerously-skip-permissions --verbose --output-format=stream-json".to_string(),
+            command: "npx -y @anthropic-ai/claude-code@1.0.24 --model=claude-opus-4-1-20250805 -p --dangerously-skip-permissions --verbose --output-format=stream-json".to_string(),
         }
     }
 
     pub fn new_plan_mode() -> Self {
-        let command = "npx -y @anthropic-ai/claude-code@latest -p --permission-mode=plan --verbose --output-format=stream-json";
+        let command = "npx -y @anthropic-ai/claude-code@1.0.24 --model=claude-opus-4-1-20250805 -p --permission-mode=plan --verbose --output-format=stream-json";
         let script = create_watchkill_script(command);
         Self {
             executor_type: "ClaudePlan".to_string(),
@@ -143,7 +143,7 @@ Task title: {}"#,
         // Determine the command based on whether this is plan mode or not
         let claude_command = if self.executor_type == "ClaudePlan" {
             let command = format!(
-                "npx -y @anthropic-ai/claude-code@latest -p --permission-mode=plan --verbose --output-format=stream-json --resume={}",
+                "npx -y @anthropic-ai/claude-code@1.0.24 --model=claude-opus-4-1-20250805 -p --permission-mode=plan --verbose --output-format=stream-json --resume={}",
                 session_id
             );
             create_watchkill_script(&command)
